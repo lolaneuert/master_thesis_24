@@ -27,36 +27,36 @@ PC15_fluo <- read_excel("C:/Users/lolan/Documents/Lola Studium/Master/thesis/dat
 # show tracer BTCs for each tracer
 KUM1_plot <- dna_data %>% 
   ggplot(aes(x = date_time, y = KUM1norm, shape = Piezometer)) + 
-  geom_line() +
   geom_point() +
+  geom_line() +
   labs(title = "KUM1", 
        subtitle = "xy", 
        x = "Date", y = "DNA concentration (g/l)") +
   theme(panel.background = element_rect(fill = "white")) + 
   geom_point(aes(color = Piezometer)) +
-  scale_color_manual(values = c("darkorange", "purple", "cyan4"), name = "Piezometer")
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422"), name = "Piezometer")
 
 KUM2_plot <- dna_data %>% 
   ggplot(aes(x = date_time, y = KUM2norm, shape = Piezometer)) + 
-  geom_line () +
   geom_point() +
+  geom_line () +
   labs(title = "KUM2", 
        subtitle = "xy", 
        x = "Date", y = "DNA concentration (g/l)") +
   theme(panel.background = element_rect(fill = "white")) + 
   geom_point(aes(color = Piezometer)) +
-  scale_color_manual(values = c("darkorange", "purple", "cyan4"), name = "Piezometer")
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422"), name = "Piezometer")
 
 KUM3_plot <- dna_data %>% 
   ggplot(aes(x = date_time, y = KUM3norm, shape = Piezometer)) + 
-  geom_line () +
   geom_point() +
+  geom_line () +
   labs(title = "KUM3", 
        subtitle = "xy", 
        x = "Date", y = "DNA concentration (g/l)") +
   theme(panel.background = element_rect(fill = "white")) + 
   geom_point(aes(color = Piezometer)) +
-  scale_color_manual(values = c("darkorange", "purple", "cyan4"), name = "Piezometer")
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422"), name = "Piezometer")
 
 KUM_combined <- KUM1_plot/KUM2_plot/KUM3_plot # show them all above each other
 ggsave(KUM_combined, filename = "KUM_combined.jpeg")
@@ -76,7 +76,7 @@ PC03_plot <- PC03_data %>%
        x = "Date", y = "DNA concentration (g/l)") +
   theme(panel.background = element_rect(fill = "white")) + 
   geom_point(aes(color = Tracer)) +
-  scale_color_manual(values = c("darkorange", "purple", "cyan4"), name = "Tracer")
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422"), name = "Tracer")
 
 # PC14
 PC14_data <- dna_data[c(14:28),] %>% 
@@ -92,7 +92,7 @@ PC14_plot <- PC14_data %>%
        x = "Date", y = "DNA concentration (g/l)") +
   theme(panel.background = element_rect(fill = "white")) + 
   geom_point(aes(color = Tracer)) +
-  scale_color_manual(values = c("darkorange", "purple", "cyan4"), name = "Tracer")
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422"), name = "Tracer")
 
 # PC15
 PC15_data <- dna_data[c(28:38),] %>% 
@@ -108,7 +108,7 @@ PC15_plot <- PC15_data %>%
        x = "Date", y = "DNA concentration (g/l)") +
   theme(panel.background = element_rect(fill = "white")) + 
   geom_point(aes(color = Tracer)) +
-  scale_color_manual(values = c("darkorange", "purple", "cyan4"), name = "Tracer")
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422"), name = "Tracer")
 
 Piez_KUM_combined <- PC03_plot/PC14_plot/PC15_plot # show them all above each other
 ggsave(Piez_KUM_combined, filename = "Piez_KUM_combined.jpeg")
@@ -169,22 +169,112 @@ PC03_dna_data$tracer <- c("DNA")
 
 combined_data_PC03 <- bind_rows(PC03_dna_data, PC03_kit, PC03_fluo)
 
-# create plot of all tracers measured at PC03, stacked over each other (but not DNA combined)
+# create plot of all tracers measured at PC03, stacked over each other 
 stacked_PC03_plots <- ggplot(combined_data_PC03, aes(x = date_time, y = conc, color = type)) +
   geom_point() + 
   geom_line() +
-  labs(title = "Tracers recovered at PC03", x = "Date", y = "tracer") +
-  theme_minimal() +
+  labs(title = "Tracers recovered at PC03", subtitle = "DNA in g/l, Fluorescence in ppb", x = "Date", y = "Tracer concentration") +
+  geom_point(aes(color = type)) +
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422","#DDA0DD", "#5D478B"), name = "type") +
   facet_wrap(~ tracer, ncol = 1, scales = "free_y") +
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
-    legend.position = "bottom"
-  )
-ggsave(stacked_PC03_plots, filename = "stacked_PC03_plots.jpeg")
+    legend.position = "right")
+ 
+stacked_PC03_plots + scale_colour_viridis_d(option = "viridis", direction = -1)
+
+ggsave(stacked_PC03_plots, filename = "stacked_PC03_plots.pdf")
 
 
 
+
+
+
+
+# PC014 
+PC14_fluo <- PC14_fluo %>%
+  rename(date_time = date_time, conc = conc, type = tracer, tracer = type)# select relevant columns
+ggplot(PC14_fluo, aes(x=date_time, y = conc, color = tracer)) +
+  geom_line() +
+  labs(title = "Fluorescence in PC14", x = "Date", y = "Tracer (ppb)") +
+  theme_minimal()
+
+PC14_kit <- PC14_kit[,c(2,4)]
+PC14_kit$type <- c("tinopal_samples")
+PC14_kit$Tracer <- c("fluorescence")
+PC14_kit <- PC14_kit %>%
+  rename(date_time = date_time, conc = "Tinopal", tracer = Tracer, type = type)
+
+PC14_dna_data <- PC14_data %>%
+  rename(date_time = date_time, conc = "DNA_conc", type = Tracer)
+PC14_dna_data$tracer <- c("DNA")
+
+
+
+combined_data_PC14 <- bind_rows(PC14_dna_data, PC14_kit, PC14_fluo)
+
+# create plot of all tracers measured at PC14, stacked over each other 
+stacked_PC14_plots <- ggplot(combined_data_PC14, aes(x = date_time, y = conc, color = type)) +
+  geom_point() + 
+  geom_line() +
+  labs(title = "Tracers recovered at PC14", subtitle = "DNA in g/l, Fluorescence in ppb", x = "Date", y = "Tracer concentration") +
+  geom_point(aes(color = type)) +
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422","#DDA0DD", "#B452CD", "#5D478B"), name = "type") +
+  facet_wrap(~ tracer, ncol = 1, scales = "free_y") +
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold"),
+    legend.position = "right")
+
+stacked_PC03_plots + scale_colour_viridis_d(option = "viridis", direction = -1)
+
+ggsave(stacked_PC14_plots, filename = "stacked_PC14_plots.pdf")
+
+
+# PC15
+
+PC15_fluo$type <- c("uranine")
+PC15_fluo$tracer <- c("fluorescence")
+PC15_fluo <- PC15_fluo %>%
+  rename(date_time = date_time, conc = uranine, tracer = tracer, type = type)
+
+
+ggplot(PC15_fluo, aes(x=date_time, y = conc)) +
+  geom_line() +
+  labs(title = "Fluorescence in PC03", x = "Date", y = "Uranine (ppb)") +
+  theme_minimal()
+
+PC15_kit <- PC15_kit[,c(2,3)]
+PC15_kit$type <- c("uranine_samples")
+PC15_kit$Tracer <- c("fluorescence")
+PC15_kit <- PC15_kit %>%
+  rename(date_time = date_time, conc = "Uranine", tracer = Tracer, type = type)
+
+PC15_dna_data <- PC15_data %>%
+  rename(date_time = date_time, conc = "DNA_conc", type = Tracer)
+PC15_dna_data$tracer <- c("DNA")
+
+
+
+combined_data_PC15 <- bind_rows(PC15_dna_data, PC15_kit, PC15_fluo)
+
+# create plot of all tracers measured at PC15, stacked over each other 
+stacked_PC15_plots <- ggplot(combined_data_PC15, aes(x = date_time, y = conc, color = type)) +
+  geom_point() + 
+  geom_line() +
+  labs(title = "Tracers recovered at PC03", subtitle = "DNA in g/l, Fluorescence in ppb", x = "Date", y = "Tracer concentration") +
+  geom_point(aes(color = type)) +
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422","#DDA0DD", "#5D478B"), name = "type") +
+  facet_wrap(~ tracer, ncol = 1, scales = "free_y") +
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold"),
+    legend.position = "right")
+
+stacked_PC03_plots + scale_colour_viridis_d(option = "viridis", direction = -1)
+
+ggsave(stacked_PC15_plots, filename = "stacked_PC15_plots.pdf")
 
 
 
