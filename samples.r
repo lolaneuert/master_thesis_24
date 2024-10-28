@@ -15,6 +15,8 @@ sample_data <- read_excel("C:/Users/lolan/Documents/Lola Studium/Master/thesis/d
 
 dna_data <- read_excel("C:/Users/lolan/Documents/Lola Studium/Master/thesis/data/all_measurements.xlsx", sheet = "DNA")
 
+piez_data <- read_excel("C:/Users/lolan/Documents/Lola Studium/Master/thesis/data/piez.xlsx", sheet = "dati_pomp")
+
 PC03_kit <- read_excel("C:/Users/lolan/Documents/Lola Studium/Master/thesis/data/all_measurements.xlsx", sheet = "PC03-kit")
 PC14_kit <- read_excel("C:/Users/lolan/Documents/Lola Studium/Master/thesis/data/all_measurements.xlsx", sheet = "PC14-kit")
 PC15_kit <- read_excel("C:/Users/lolan/Documents/Lola Studium/Master/thesis/data/all_measurements.xlsx", sheet = "PC15-kit")
@@ -24,6 +26,13 @@ PC03_fluo <- read_excel("C:/Users/lolan/Documents/Lola Studium/Master/thesis/dat
 PC14_fluo <- read_excel("C:/Users/lolan/Documents/Lola Studium/Master/thesis/data/all_measurements.xlsx", sheet = "PC14-fluo")
 PC15_fluo <- read_excel("C:/Users/lolan/Documents/Lola Studium/Master/thesis/data/all_measurements.xlsx", sheet = "PC15-aquaread")
 
+data_divers <- read_excel("C:/Users/lolan/Documents/Lola Studium/Master/thesis/data/diver_data_clean.xlsx")
+
+ 
+# relevant moments in time
+events <- read_excel("C:/Users/lolan/Documents/Lola Studium/Master/thesis/data/all_measurements.xlsx", sheet = "events")
+
+  
 # show tracer BTCs for each tracer
 KUM1_plot <- dna_data %>% 
   ggplot(aes(x = date_time, y = KUM1norm, shape = Piezometer)) + 
@@ -133,6 +142,7 @@ stacked_dna_plots <- ggplot(combined_dna, aes(x = date_time, y = DNA_conc, color
   labs(title = "All three DNA tracers", x = "Date", y = "DNA") +
   theme_minimal() +
   facet_wrap(~ Piezometer, ncol = 1, scales = "free_y") +
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422"), name = "Tracer")+
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
@@ -140,143 +150,231 @@ stacked_dna_plots <- ggplot(combined_dna, aes(x = date_time, y = DNA_conc, color
   )
 ggsave(stacked_dna_plots, filename = "stacked_dna_plots.jpeg")
 
-# stack dna and fluo datasets
-# PC03
 
+  
+# prep and stack datasets
+# PC03
+events_PC03 <- events[c(1, 4, 7, 10, 11, 12),]
+
+# prep continuous fluo data
 PC03_fluo <- PC03_fluo[,c(1, 15)] # select relevant columns
 PC03_fluo$type <- c("uranine")
-PC03_fluo$Tracer <- c("fluorescence")
+PC03_fluo$parameter <- c("Fluorescence")
+PC03_fluo$plot_type <- c("line")
 PC03_fluo <- PC03_fluo %>% 
-  rename(date_time = `Date+Time`, conc = "Uranine [µg/l]", tracer = Tracer) %>% # rename columns
+  rename(date_time = `Date+Time`, value = "Uranine [µg/l]") %>% # rename columns
   na.omit(PC03_fluo)
 
-ggplot(PC03_fluo, aes(x=date_time, y = conc)) +
+ggplot(PC03_fluo, aes(x=date_time, y = value)) +
   geom_line() +
   labs(title = "Fluorescence in PC03", x = "Date", y = "Uranine (ppb)") +
   theme_minimal()
 
+# prep sample fluo data
 PC03_kit <- PC03_kit[,c(2,3)]
 PC03_kit$type <- c("uranine_samples")
-PC03_kit$Tracer <- c("fluorescence")
+PC03_kit$parameter <- c("Fluorescence")
+PC03_kit$plot_type <- c("point")
 PC03_kit <- PC03_kit %>%
-  rename(date_time = date_time, conc = "Uranine", tracer = Tracer, type = type)
-  
+  rename(date_time = date_time, value = "Uranine", parameter = parameter, type = type)
+ 
+# prep dna data 
 PC03_dna_data <- PC03_data %>%
-  rename(date_time = date_time, conc = "DNA_conc", type = Tracer)
-PC03_dna_data$tracer <- c("DNA")
+  rename(date_time = date_time, value = "DNA_conc", type = Tracer)
+PC03_dna_data$parameter <- c("DNA")
+PC03_dna_data$plot_type <- c("point")
+
+# prep piez data
+PC03_piez <- piez_data[c(1:14), c(3,4)]
+PC03_piez$type <- c("water_level_PC03")
+PC03_piez$parameter <- c("Piezometry")
+PC03_piez$plot_type <- c("line")
+PC03_piez <- PC03_piez %>%
+  rename(date_time = date_time, value = level, type = type, parameter = parameter)
+
+# prep closest diver data
+PC09_diver <- data_divers[,c(3,18)] # select relevant columns
+PC09_diver <- PC09_diver %>% 
+  rename(date_time = Date_Time, value = QUOTA_PC09)
+PC09_diver <- na.omit(data_diver)
+PC09_diver$type <- c("water_level_PC09")
+PC09_diver$parameter <- c("Piezometry")
+PC09_diver$plot_type <- c("line")
 
 
 
-combined_data_PC03 <- bind_rows(PC03_dna_data, PC03_kit, PC03_fluo)
+combined_data_PC03 <- bind_rows(PC03_dna_data, PC03_kit, PC03_fluo, PC03_piez, PC09_diver)
+
 
 # create plot of all tracers measured at PC03, stacked over each other 
-stacked_PC03_plots <- ggplot(combined_data_PC03, aes(x = date_time, y = conc, color = type)) +
-  geom_point() + 
-  geom_line() +
-  labs(title = "Tracers recovered at PC03", subtitle = "DNA in g/l, Fluorescence in ppb", x = "Date", y = "Tracer concentration") +
-  geom_point(aes(color = type)) +
-  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422","#DDA0DD", "#5D478B"), name = "type") +
-  facet_wrap(~ tracer, ncol = 1, scales = "free_y") +
+stacked_PC03_plots <- ggplot(combined_data_PC03, aes(x = date_time, y = value, color = type)) +
+  geom_point(data = combined_data_PC03[combined_data_PC03$plot_type == "point", ], size = 1) + 
+  geom_line(data = combined_data_PC03[combined_data_PC03$plot_type == "line", ], size = 0.5) +
+  geom_line(data = combined_data_PC03[combined_data_PC03$parameter == "DNA", ], size = 0.5) +
+  #geom_smooth(data = combined_data_PC03[combined_data_PC03$plot_type == "point", ], 
+              #size = 3, method="loess", se=F)
+  geom_vline(xintercept = events_PC03$date_time, 
+             linetype = "dashed", 
+             color = "red", 
+             size = 0.5) +
+  labs(title = "Parameters measured at PC03", subtitle = "In addition: diver continuous water levels from PC09", x = "Date", y = "Water level (m a.s.l.)                               Fluorescence (ppb)                            DNA (g/l)       ") +
+  #theme(axis.title = element_text(size = 15,
+                                #  color = "blue",
+                                  #face = "bold"))
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422","#DDA0DD", "#5D478B","darkblue", "black"), name = "type") +
+  facet_wrap(~ parameter, ncol = 1, scales = "free_y", labeller = as_labeller(c(DNA = "DNA concentration", Fluorescence = "Fluorescent concentration", Piezometry = "Piezometric level") ) )  +
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
-    legend.position = "right")
+    legend.position = "right") +
+  scale_x_datetime(date_breaks = "1 day", date_labels = '%d-%m-%Y')
+    
+
  
 stacked_PC03_plots + scale_colour_viridis_d(option = "viridis", direction = -1)
 
-ggsave(stacked_PC03_plots, filename = "stacked_PC03_plots.pdf")
-
-
-
+ggsave(stacked_PC03_plots, filename = "stacked_PC03_plots.pdf", width = 14, height = 8, dpi = 500)
 
 
 
 
 # PC014 
+events_PC14 <- events[c(2, 5, 8, 10, 11, 12),]
+
+# prep continuous fluo data
 PC14_fluo <- PC14_fluo %>%
-  rename(date_time = date_time, conc = conc, type = tracer, tracer = type)# select relevant columns
-ggplot(PC14_fluo, aes(x=date_time, y = conc, color = tracer)) +
+  rename(date_time = date_time, value = conc, type = tracer, parameter = type)
+PC14_fluo$plot_type <- c("line")
+PC14_fluo$parameter <- c("Fluorescence")
+
+ggplot(PC14_fluo, aes(x = date_time, y = value, color = type)) +
   geom_line() +
   labs(title = "Fluorescence in PC14", x = "Date", y = "Tracer (ppb)") +
   theme_minimal()
 
+# prep sample fluo data
 PC14_kit <- PC14_kit[,c(2,4)]
 PC14_kit$type <- c("tinopal_samples")
-PC14_kit$Tracer <- c("fluorescence")
+PC14_kit$Tracer <- c("Fluorescence")
+PC14_kit$plot_type <- c("point")
 PC14_kit <- PC14_kit %>%
-  rename(date_time = date_time, conc = "Tinopal", tracer = Tracer, type = type)
+  rename(date_time = date_time, value = "Tinopal", parameter = Tracer, type = type)
 
+# prep dna data
 PC14_dna_data <- PC14_data %>%
-  rename(date_time = date_time, conc = "DNA_conc", type = Tracer)
-PC14_dna_data$tracer <- c("DNA")
+  rename(date_time = date_time, value = "DNA_conc", type = Tracer)
+PC14_dna_data$parameter <- c("DNA")
+PC14_dna_data$plot_type <- c("point")
+
+# prep piez data
+PC14_piez <- piez_data[c(15:28), c(3,4)]
+PC14_piez$type <- c("water_level_PC03")
+PC14_piez$parameter <- c("Piezometry")
+PC14_piez$plot_type <- c("line")
+PC14_piez <- PC14_piez %>%
+  rename(value = level)
+
+# prep closest diver data
+PC11_diver <- data_divers[,c(3,26)] # select relevant columns
+PC11_diver <- PC11_diver %>% 
+  rename(date_time = Date_Time, value = QUOTA_PC11)
+PC11_diver <- na.omit(PC11_diver)
+PC11_diver$type <- c("water_level_PC11")
+PC11_diver$parameter <- c("Piezometry")
+PC11_diver$plot_type <- c("line")
 
 
-
-combined_data_PC14 <- bind_rows(PC14_dna_data, PC14_kit, PC14_fluo)
+combined_data_PC14 <- bind_rows(PC14_dna_data, PC14_kit, PC14_fluo, PC14_piez, PC11_diver)
 
 # create plot of all tracers measured at PC14, stacked over each other 
-stacked_PC14_plots <- ggplot(combined_data_PC14, aes(x = date_time, y = conc, color = type)) +
-  geom_point() + 
-  geom_line() +
-  labs(title = "Tracers recovered at PC14", subtitle = "DNA in g/l, Fluorescence in ppb", x = "Date", y = "Tracer concentration") +
-  geom_point(aes(color = type)) +
-  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422","#DDA0DD", "#B452CD", "#5D478B"), name = "type") +
-  facet_wrap(~ tracer, ncol = 1, scales = "free_y") +
+stacked_PC14_plots <- ggplot(combined_data_PC14, aes(x = date_time, y = value, color = type)) +
+  geom_point(data = combined_data_PC14[combined_data_PC14$plot_type == "point", ], size = 1) + 
+  geom_line(data = combined_data_PC14[combined_data_PC14$plot_type == "line", ], size = 0.5) +
+  geom_line(data = combined_data_PC14[combined_data_PC14$parameter == "DNA", ], size = 0.5) +
+  geom_vline(xintercept = events_PC14$date_time, 
+             linetype = "dashed", 
+             color = "red", 
+             size = 0.5) +
+  labs(title = "Parameters measured at PC14", subtitle = "In addition: diver continuous water levels from PC11", x = "Date", y = "Water level (m a.s.l.)                               Fluorescence (ppb)                            DNA (g/l)       ") +
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422","#DDA0DD", "#B452CD", "#5D478B", "darkblue", "black"), name = "type") +
+  facet_wrap(~ parameter, ncol = 1, scales = "free_y", labeller = as_labeller(c(DNA = "DNA concentration", Fluorescence = "Fluorescent concentration", Piezometry = "Piezometric level") ) ) +
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
-    legend.position = "right")
+    legend.position = "right") +
+  scale_x_datetime(date_breaks = "1 day", date_labels = '%d-%m-%Y')
 
-stacked_PC03_plots + scale_colour_viridis_d(option = "viridis", direction = -1)
+stacked_PC14_plots + scale_colour_viridis_d(option = "viridis", direction = -1)
 
-ggsave(stacked_PC14_plots, filename = "stacked_PC14_plots.pdf")
+ggsave(stacked_PC14_plots, filename = "stacked_PC14_plots.pdf", width = 14, height = 8, dpi = 500)
 
 
 # PC15
 
+events_PC15 <- events[c(3, 6, 9, 10, 11, 12),]
+
+# prep continuous fluo data
+PC15_fluo <- PC15_fluo[c(-493, -636), c(1, 15)] # select relevant columns and remove 2 outlier values
 PC15_fluo$type <- c("uranine")
-PC15_fluo$tracer <- c("fluorescence")
-PC15_fluo <- PC15_fluo %>%
-  rename(date_time = date_time, conc = uranine, tracer = tracer, type = type)
+PC15_fluo$parameter <- c("Fluorescence")
+PC15_fluo$plot_type <- c("line")
+PC15_fluo <- PC15_fluo %>% 
+  rename(value = "Uranine [µg/l]") %>% # rename columns
+  na.omit(PC15_fluo)
 
-
-ggplot(PC15_fluo, aes(x=date_time, y = conc)) +
+ggplot(PC15_fluo, aes(x=date_time, y = value)) +
   geom_line() +
-  labs(title = "Fluorescence in PC03", x = "Date", y = "Uranine (ppb)") +
+  labs(title = "Fluorescence in PC15", x = "Date", y = "Uranine (ppb)") +
   theme_minimal()
 
+# prep sample fluo data
 PC15_kit <- PC15_kit[,c(2,3)]
 PC15_kit$type <- c("uranine_samples")
-PC15_kit$Tracer <- c("fluorescence")
+PC15_kit$parameter <- c("Fluorescence")
+PC15_kit$plot_type <- c("point")
 PC15_kit <- PC15_kit %>%
-  rename(date_time = date_time, conc = "Uranine", tracer = Tracer, type = type)
+  rename(date_time = date_time, value = "Uranine", parameter = parameter, type = type)
 
+# prep dna data
 PC15_dna_data <- PC15_data %>%
-  rename(date_time = date_time, conc = "DNA_conc", type = Tracer)
-PC15_dna_data$tracer <- c("DNA")
+  rename(date_time = date_time, value = "DNA_conc", type = Tracer)
+PC15_dna_data$parameter <- c("DNA")
+PC15_dna_data$plot_type <- ("point")
+
+# prep piez data
+PC15_piez <- piez_data[c(29:41), c(3,4)]
+PC15_piez$type <- c("water_level_PC03")
+PC15_piez$parameter <- c("Piezometry")
+PC15_piez$plot_type <- c("line")
+PC15_piez <- PC15_piez %>%
+  rename(value = level)
 
 
-
-combined_data_PC15 <- bind_rows(PC15_dna_data, PC15_kit, PC15_fluo)
+# combine all datasets
+combined_data_PC15 <- bind_rows(PC15_dna_data, PC15_kit, PC15_fluo, PC15_piez, PC11_diver)
 
 # create plot of all tracers measured at PC15, stacked over each other 
-stacked_PC15_plots <- ggplot(combined_data_PC15, aes(x = date_time, y = conc, color = type)) +
-  geom_point() + 
-  geom_line() +
-  labs(title = "Tracers recovered at PC03", subtitle = "DNA in g/l, Fluorescence in ppb", x = "Date", y = "Tracer concentration") +
-  geom_point(aes(color = type)) +
-  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422","#DDA0DD", "#5D478B"), name = "type") +
-  facet_wrap(~ tracer, ncol = 1, scales = "free_y") +
+stacked_PC15_plots <- ggplot(combined_data_PC15, aes(x = date_time, y = value, color = type)) +
+  geom_point(data = combined_data_PC15[combined_data_PC15$plot_type == "point", ], size = 1) + 
+  geom_line(data = combined_data_PC15[combined_data_PC15$plot_type == "line", ], size = 0.5) +
+  geom_line(data = combined_data_PC15[combined_data_PC15$parameter == "DNA", ], size = 0.5) +
+  geom_vline(xintercept = events_PC15$date_time, 
+             linetype = "dashed", 
+             color = "red", 
+             size = 0.5) +
+  labs(title = "Parameters measured at PC15", subtitle = "In addition: diver continuous water levels from PC11", x = "Date", y = "Water level (m a.s.l.)                               Fluorescence (ppb)                            DNA (g/l)       ") +
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422","#DDA0DD", "#5D478B","darkblue", "black"), name = "type") +
+  facet_wrap(~ parameter, ncol = 1, scales = "free_y", labeller = as_labeller(c(DNA = "DNA concentration", Fluorescence = "Fluorescent concentration", Piezometry = "Piezometric level") ) )  +
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
-    legend.position = "right")
-
-stacked_PC03_plots + scale_colour_viridis_d(option = "viridis", direction = -1)
-
-ggsave(stacked_PC15_plots, filename = "stacked_PC15_plots.pdf")
+    legend.position = "right") +
+  scale_x_datetime(date_breaks = "1 day", date_labels = '%d-%m-%Y')
 
 
+stacked_PC15_plots + scale_colour_viridis_d(option = "viridis", direction = -1)
+
+ggsave(stacked_PC15_plots, filename = "stacked_PC15_plots.pdf", width = 14, height = 8, dpi = 500)
 
 
 
