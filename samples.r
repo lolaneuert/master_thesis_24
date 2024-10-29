@@ -21,7 +21,13 @@ library(patchwork)
 
 sample_data <- read_excel("data/all_measurements.xlsx", sheet = "All")
 
+bailer_data <- read_excel("data/all_measurements.xlsx", sheet = "bailer_data")
+
 dna_data <- read_excel("data/all_measurements.xlsx", sheet = "DNA")
+data_PC07 <- read_excel("data/all_measurements.xlsx", sheet = "PC07")
+data_PC12 <- read_excel("data/all_measurements.xlsx", sheet = "PC12")
+data_PC16 <- read_excel("data/all_measurements.xlsx", sheet = "PC16")
+
 
 piez_data <- read_excel("data/piez.xlsx", sheet = "dati_pomp")
 
@@ -497,4 +503,73 @@ tracer_PC15_plots <- ggplot(tracer_data_PC15, aes(x = date_time, y = value, colo
           vjust = 1.5, color = "red", 
           inherit.aes = FALSE)
 ggsave(tracer_PC15_plots, filename = "tracer_PC15_labels.pdf", width = 14, height = 8, dpi = 500)
+
+
+
+
+
+################################################################################
+# repeat for bailer locations
+# insert relevant bailer events
+events_bailer <- events[c(1, 4, 7, 10, 11, 16), -3]
+events_bailer$event <- c("Start pump", "Injection DNA", "Injection Fluorescence", "Stop pumps", "Start pumps", "Final stop pumps")
+
+events_bailer_DNA <- events_bailer[c(1, 2, 4, 5, 6),]
+events_bailer_DNA$Piezometer <- c("PC07")
+events_bailer_DNA$y_position = c(6.5e-08, 6e-08, 6.5e-08, 6e-08, 6.5e-08)
+events_bailer_fluo <- events_bailer[c(1, 3, 4, 5, 6),]
+events_bailer_fluo$Piezometer <- c("PC07")
+events_bailer_fluo$y_position = c(40, 35, 40, 35, 40)
+
+
+bailer_fluo <- bailer_data[c(1:31),]
+bailer_dna <- bailer_data[c(32:76),]
+
+# create plot for dna in bailers
+dna_bailer_plots <- ggplot(bailer_dna, aes(x = date_time, y = value, color = type)) + # here variable type is used to differentiate what is shown
+  geom_point(size = 1) + 
+  geom_line(linewidth = 0.5) +
+  geom_vline(xintercept = events_bailer_DNA$date_time, # adds a vertical line to show selected events
+             linetype = "dashed", 
+             color = "red", 
+             linewidth = 0.5) +
+  labs(title = "DNA concentration measured at PC07, PC12, PC16", subtitle = "From groundwater samples", 
+       x = "Date", y = "DNA (g/l)") +
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422"), name = "type") +
+  facet_wrap(~ Piezometer, ncol = 1, scales = "free_y", 
+             labeller = as_labeller(c(PC07 = "PC07", PC12 = "PC12", PC16 = "PC16") ) )  +
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold"),
+    legend.position = "right") +
+  scale_x_datetime(limits = as.POSIXct(c("2024-07-15", "2024-07-30")), date_breaks = "1 day", date_labels = '%d-%m-%Y') +
+  geom_text(data = events_bailer_DNA, aes(x = date_time, y = y_position, label = event), vjust = 1.5 , color = "red", 
+           inherit.aes = FALSE)
+ggsave(dna_bailer_plots, filename = "dna_bailer_plots.jpeg", width = 14, height = 8, dpi = 500)
+
+
+
+# fluo plots in bailers
+fluo_bailer_plots <- ggplot(bailer_fluo, aes(x = date_time, y = value, color = type)) + # here variable type is used to differentiate what is shown
+  geom_point(size = 1) + 
+  geom_line(linewidth = 0.5) +
+  geom_vline(xintercept = events_bailer_fluo$date_time, # adds a vertical line to show selected events
+             linetype = "dashed", 
+             color = "red", 
+             linewidth = 0.5) +
+  labs(title ="Fluorescent concentration measured at PC07, PC12, PC16", subtitle = "From groundwater samples", 
+       x = "Date", y = "Fluorescence (ppb)") +
+  scale_color_manual(values = c("#5D478B", "#DDA0DD"), name = "type") +
+  facet_wrap(~ Piezometer, ncol = 1, scales = "fixed", 
+             labeller = as_labeller(c(PC07 = "PC07", PC12 = "PC12", PC16 = "PC16") ) )  +
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold"),
+    legend.position = "right") +
+  scale_x_datetime(limits = as.POSIXct(c("2024-07-15", "2024-07-30")), date_breaks = "1 day", date_labels = '%d-%m-%Y') +
+  geom_text(data = events_bailer_fluo, aes(x = date_time, y = y_position, label = event), vjust = 1.5 , color = "red", 
+            inherit.aes = FALSE)
+ggsave(fluo_bailer_plots, filename = "fluo_bailer_plots.jpeg", width = 14, height = 8, dpi = 500)
+
+
 
