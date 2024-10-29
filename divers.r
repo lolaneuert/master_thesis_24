@@ -10,7 +10,12 @@ library(viridis)
 library(patchwork)
 
 # load data from excel
-data_divers <- read_excel("C:/Users/lolan/Documents/Lola Studium/Master/thesis/data/diver_data_clean.xlsx")
+data_divers <- read_excel("data/diver_data_clean.xlsx")
+piez_data <- read_excel("data/piez.xlsx", sheet = "dati_pomp")
+data_piez_manual <- read_excel("data/piez.xlsx", sheet = "manual")
+events <- read_excel("data/all_measurements.xlsx", sheet = "events")
+
+
 # clean dataset
 data_diver <- data_divers[,c(2,3,4,5,6,9,13,17,21,25,29,33)] # select relevant columns
 data_diver <- data_diver %>% 
@@ -156,9 +161,8 @@ ggsave(all_plots_mean, filename = "all_plots_mean.jpeg")
 
 ################################################################################
 
-data_piez <- read_excel("C:/Users/lolan/Documents/Lola Studium/Master/thesis/data/piez.xlsx")
 
-data_piez1 <- data_piez %>% 
+data_piez1 <- data_allpiez %>% 
   gather(key = "Piezometer", value = "subjectivity", -date)
 
 plot_piez <- ggplot(data_piez1, aes(x = date, y = subjectivity)) + 
@@ -191,16 +195,41 @@ data_quota1 <- data_quota %>%
   select(date_time, PC01, PC08, PC09, PC10, PC11, PC13, PC21) %>%
   gather(key = "Piezometer", value = "quota", -date_time) # collapse the piezometer columns into one to plot later
 
+data_quota1$plot_type <- c("line")
+data_piez_manual$plot_type <- c("dashed")
+
+events_piez <- events[c(1, 10, 11, 16), -3]
+events_piez$y_position = c(0.62, 0.62, 0.61, 0.62)
+date = as_datetime("2024-07-17 13:54:27")
+events_piez <- events_piez %>% add_row(date_time = date, event = "Install divers", y_position = 0.62)
+
+
+
+combined_data_piez <- bind_rows(data_quota1, data_piez_manual)
+
 # plot piezometry using ggplot
-plot_quota <- ggplot(data_quota1, aes(x = date_time, y = quota)) + 
-  geom_line(aes(color = Piezometer), size = 1) +
+plot_quota <- ggplot(combined_data_piez, aes(x = date_time, y = quota)) + 
+  geom_line(data = combined_data_piez[combined_data_piez$plot_type == "line", ], aes(color = Piezometer), linewidth = 1) +
+  geom_line(data = combined_data_piez[combined_data_piez$plot_type == "dashed", ], aes(color = Piezometer), linetype = "dashed", linewidth = 1) +
+  geom_point(data = combined_data_piez[combined_data_piez$plot_type == "dashed", ], aes(color = Piezometer), size = 1) + 
+  geom_vline(xintercept = events_piez$date_time, # adds a vertical line to show selected events
+             linetype = "dashed", 
+             color = "red", 
+             size = 0.5) +
   labs(title = "Diver Measurements", 
        subtitle = "Quota of each Piezometer", 
        x = "Date & Time", y = "Piezometry (m)") +
-  scale_colour_viridis_d(option = "plasma", direction = -1) +
-  theme(panel.background = element_rect(fill = "white"))
+  scale_colour_viridis_d(option = "turbo", direction = -1) +
+  theme(panel.background = element_rect(fill = "white")) +
+  geom_text(data = events_piez, aes(x = date_time, y = y_position, label = event), vjust = 1.5 , color = "red", 
+            inherit.aes = FALSE)
 plot_quota
-ggsave(plot_quota, filename = "plot_quota.jpeg")
+ggsave(plot_quota, filename = "plot_quota_labels.pdf", width = 14, height = 8, dpi = 500)
+
+
+
+
+
 
 # plot the singular piezometers
 
