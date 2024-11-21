@@ -1,13 +1,9 @@
 # Sample data
 
 getwd()
-install.packages("readxl")
-install.packages("ggplot2")
-install.packages("tidyverse")
-install.packages("tidyr")
-install.packages("dplyr")
-install.packages("viridis")
-install.packages("patchwork")
+library(dplyr)   
+library(stats)
+library(factoextra)
 library(readxl)
 library(ggplot2)
 library(tidyverse)
@@ -15,6 +11,11 @@ library(tidyr)
 library(dplyr)
 library(viridis)
 library(patchwork)
+library(car)
+library(fpp)
+library(forecast)
+library(pracma)
+
 
 ################################################################################
 # load data from excel
@@ -42,7 +43,10 @@ PC15_fluo <- read_excel("data/all_measurements.xlsx", sheet = "PC15-aquaread")
 
 data_divers <- read_excel("data/diver_data_clean.xlsx")
 
+tph <-  read_excel("data/all_measurements.xlsx", sheet = "TPH")
+
 events <- read_excel("data/all_measurements.xlsx", sheet = "events")
+
 
 ################################################################################  
 # show tracer BTCs for each tracer
@@ -88,11 +92,19 @@ ggsave(KUM_combined, filename = "KUM_combined.jpeg") # save as image
 PC03_data <- dna_data[c(1:13),] %>% 
   select(date_time, KUM1norm, KUM2norm, KUM3norm) %>%
   gather(key = "Tracer", value = "DNA_conc", -date_time) # collapse the tracer columns into one to plot later
+PC14_data <- dna_data[c(14:28),] %>% 
+  select(date_time, KUM1norm, KUM2norm, KUM3norm) %>%
+  gather(key = "Tracer", value = "DNA_conc", -date_time) # collapse the tracer columns into one to plot later
+PC15_data <- dna_data[c(28:38),] %>% 
+  select(date_time, KUM1norm, KUM2norm, KUM3norm) %>%
+  gather(key = "Tracer", value = "DNA_conc", -date_time) # collapse the tracer columns into one to plot later
+
 
 PC03_plot <- PC03_data %>% 
   ggplot(aes(x = date_time, y = DNA_conc, shape = Tracer)) + 
   geom_line () +
   geom_point() +
+  scale_y_continuous(trans='log10')+
   labs(title = "PC03", 
        subtitle = "xy", 
        x = "Date", y = "DNA concentration (g/l)") +
@@ -101,14 +113,12 @@ PC03_plot <- PC03_data %>%
   scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422"), name = "Tracer")
 
 # PC14
-PC14_data <- dna_data[c(14:28),] %>% 
-  select(date_time, KUM1norm, KUM2norm, KUM3norm) %>%
-  gather(key = "Tracer", value = "DNA_conc", -date_time) # collapse the tracer columns into one to plot later
 
 PC14_plot <- PC14_data %>% 
   ggplot(aes(x = date_time, y = DNA_conc, shape = Tracer)) + 
   geom_line () +
   geom_point() +
+  scale_y_continuous(trans='log10')+
   labs(title = "PC14", 
        subtitle = "xy", 
        x = "Date", y = "DNA concentration (g/l)") +
@@ -117,14 +127,12 @@ PC14_plot <- PC14_data %>%
   scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422"), name = "Tracer")
 
 # PC15
-PC15_data <- dna_data[c(28:38),] %>% 
-  select(date_time, KUM1norm, KUM2norm, KUM3norm) %>%
-  gather(key = "Tracer", value = "DNA_conc", -date_time) # collapse the tracer columns into one to plot later
 
 PC15_plot <- PC15_data %>% 
   ggplot(aes(x = date_time, y = DNA_conc, shape = Tracer)) + 
   geom_line () +
   geom_point() +
+  scale_y_continuous(trans='log10')+
   labs(title = "PC15", 
        subtitle = "xy", 
        x = "Date", y = "DNA concentration (g/l)") +
@@ -174,7 +182,9 @@ ggsave(stacked_dna_plots, filename = "stacked_dna_plots.jpeg")
 events_PC03 <- events[c(1, 4, 7, 10, 11, 12, 16),]
 events_PC03_DNA <- events_PC03[c(1, 2, 4, 5, 7), -3]
 events_PC03_DNA$parameter <- c("DNA")
-events_PC03_DNA$y_position = c(2.5e-07, 2.3e-07, 2.5e-07, 2.3e-07, 2.5e-07)
+events_PC03_DNA_log <- events_PC03[c(1, 2, 4, 5, 7), -3]
+events_PC03_DNA_log$parameter <- c("DNA")
+events_PC03_DNA_log$y_position = c(-3, -4, -3, -4, -3)
 events_PC03_fluo <- events_PC03[c(3, 6), -3]
 events_PC03_fluo$parameter <- c("Fluorescence")
 events_PC03_fluo$y_position = c(250, 250)
@@ -188,6 +198,14 @@ PC03_fluo <- PC03_fluo %>%
   rename(date_time = `Date+Time`, value = "Uranine [µg/l]") %>% # rename columns
   na.omit(PC03_fluo)
 
+# for visualisation of a potential trend in this fluo dataset
+plot(y = as.ts(PC03_fluo$value), x = PC03_fluo$date_time)
+PC03_fluo_trend <- ma(PC03_fluo$value, order = 100, centre = T)
+plot(as.ts(PC03_fluo$value))
+lines(PC03_fluo_trend, col =2)
+deplot_PC03 <- PC03_fluo$value - PC03_fluo_trend
+plot(as.ts(deplot_PC03))
+
 ggplot(PC03_fluo, aes(x=date_time, y = value)) +
   geom_line() +
   labs(title = "Fluorescence in PC03", x = "Date", y = "Uranine (ppb)") +
@@ -199,13 +217,14 @@ PC03_kit$type <- c("uranine_samples")
 PC03_kit$parameter <- c("Fluorescence")
 PC03_kit$plot_type <- c("point")
 PC03_kit <- PC03_kit %>%
-  rename(date_time = date_time, value = "Uranine", parameter = parameter, type = type)
+  rename(value = "Uranine")
  
 # prep dna data 
-PC03_dna_data <- PC03_data %>%
+PC03_dna_data <- PC03_data[c(14:39),] %>%
   rename(date_time = date_time, value = "DNA_conc", type = Tracer)
 PC03_dna_data$parameter <- c("DNA")
 PC03_dna_data$plot_type <- c("point")
+
 
 # prep piez data
 PC03_piez <- piez_data[c(1:14), c(3,4)]
@@ -225,14 +244,15 @@ PC09_diver$parameter <- c("Piezometry")
 PC09_diver$plot_type <- c("line")
 
 
-
 # combine the datasets
 combined_data_PC03 <- bind_rows(PC03_dna_data, PC03_kit, PC03_fluo, PC03_piez, PC09_diver)
 tracer_data_PC03 <- bind_rows(PC03_dna_data, PC03_kit, PC03_fluo)
+tracer_data_PC03 <- tracer_data_PC03 %>%
+  mutate(value_transformed = ifelse(parameter == "DNA", log10(value), value))
 
 
 # create plot of all tracers measured at PC03, stacked over each other 
-stacked_PC03_plots <- ggplot(combined_data_PC03, aes(x = date_time, y = value, color = type)) +
+stacked_PC03_plots <- ggplot(combined_data_PC03, aes(x = date_time, y = value_transformed, color = type)) +
   geom_point(data = combined_data_PC03[combined_data_PC03$plot_type == "point", ], size = 1) + 
   geom_line(data = combined_data_PC03[combined_data_PC03$plot_type == "line", ], linewidth = 0.5) +
   geom_line(data = combined_data_PC03[combined_data_PC03$parameter == "DNA", ], size = 0.5) +
@@ -258,22 +278,23 @@ tracer_PC03_plots <- ggplot(tracer_data_PC03, aes(x = date_time, y = value, colo
   geom_point(data = tracer_data_PC03[tracer_data_PC03$plot_type == "point", ], size = 1) + 
   geom_line(data = tracer_data_PC03[tracer_data_PC03$plot_type == "line", ], linewidth = 0.5) +
   geom_line(data = tracer_data_PC03[tracer_data_PC03$parameter == "DNA", ], size = 0.5) +
+  geom_line(data = tracer_data_PC03[tracer_data_PC03$type == "uranine_samples", ], size = 0.5) +
   #geom_smooth(data = combined_data_PC03[combined_data_PC03$plot_type == "point", ], 
   #size = 3, method="loess", se=F)
   geom_vline(xintercept = events_PC03$date_time, 
              linetype = "dashed", 
              color = "red", 
              linewidth = 0.5) +
-  labs(title = "Tracers measured at PC03", subtitle = "Both from groundwater samples as well as continuous fluorescence measurements", 
-       x = "Date", y = "Fluorescence (ppb)                                               DNA (g/l)") +
-  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422","#DDA0DD", "#5D478B", "darkblue"), name = "type") +
+  labs(x = "Date (July 2024)", y = "Uranine (ppb)                                               DNA (g/L)") +
+  scale_color_manual(values = c("#EE7600", "#EEB422","#DDA0DD", "mediumorchid4", "darkblue"), name = "Type of tracer", labels = c("KUM2", "KUM3", "Uranine (probe)", "Uranine (lab)")) +
   facet_wrap(~ parameter, ncol = 1, scales = "free_y", 
-             labeller = as_labeller(c(DNA = "DNA concentration", Fluorescence = "Fluorescent concentration") ) )  +
+             labeller = as_labeller(c(DNA = "DNA concentration", Fluorescence = "Uranine concentration")))  +
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
-    legend.position = "right") +
-  scale_x_datetime(date_breaks = "1 day", date_labels = '%d-%m-%Y') +
+    legend.position = "bottom",  legend.title=element_text(size=15), 
+    legend.text=element_text(size=10)) +
+  scale_x_datetime(date_breaks = "1 day", date_labels = '%d') +
   geom_text(data = events_PC03_DNA, aes(x = date_time, y = y_position, label = event), vjust = 1.5 , color = "red", 
             inherit.aes = FALSE) +
   geom_text(data = events_PC03_fluo, aes(x = date_time, y = y_position, label = event), 
@@ -281,18 +302,54 @@ tracer_PC03_plots <- ggplot(tracer_data_PC03, aes(x = date_time, y = value, colo
             inherit.aes = FALSE)
 
 # save the plot as a pdf
-ggsave(tracer_PC03_plots, filename = "tracer_PC03_labels.pdf", width = 14, height = 8, dpi = 500)
+ggsave(tracer_PC03_plots, filename = "tracer_PC03_labels.png", width = 14, height = 8, dpi = 500)
 
+
+
+# plot log
+tracer_PC03_plots_log <- ggplot(tracer_data_PC03, aes(x = date_time, y = value_transformed, color = type)) +
+  geom_point(data = tracer_data_PC03[tracer_data_PC03$plot_type == "point", ], size = 1) + 
+  geom_line(data = tracer_data_PC03[tracer_data_PC03$plot_type == "line", ], linewidth = 0.5) +
+  geom_line(data = tracer_data_PC03[tracer_data_PC03$parameter == "DNA", ], size = 0.5) +
+  geom_line(data = tracer_data_PC03[tracer_data_PC03$type == "uranine_samples", ], size = 0.5) +
+  #geom_smooth(data = combined_data_PC03[combined_data_PC03$plot_type == "point", ], 
+  #size = 3, method="loess", se=F)
+  geom_vline(xintercept = events_PC03$date_time, 
+             linetype = "dashed", 
+             color = "red", 
+             linewidth = 0.5) +
+  labs(x = "Date (July 2024)", y = "Uranine (ppb)                                               DNA log (g/L)") +
+  scale_color_manual(values = c("#EE7600", "#EEB422","#DDA0DD", "mediumorchid4", "darkblue"), name = "Type of tracer", labels = c("KUM2", "KUM3", "Uranine (probe)", "Uranine (lab)")) +
+  facet_wrap(~ parameter, ncol = 1, scales = "free_y", 
+             labeller = as_labeller(c(DNA = "DNA concentration", Fluorescence = "Uranine concentration")))  +
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold"),
+    legend.position = "bottom",  legend.title=element_text(size=15), 
+    legend.text=element_text(size=10)) +
+  scale_x_datetime(date_breaks = "1 day", date_labels = '%d') +
+  geom_text(data = events_PC03_DNA_log, aes(x = date_time, y = y_position, label = event), vjust = 1.5 , color = "red", 
+            inherit.aes = FALSE) +
+  geom_text(data = events_PC03_fluo, aes(x = date_time, y = y_position, label = event), 
+            vjust = 1.5, color = "red", 
+            inherit.aes = FALSE)
+
+# save the plot as a pdf
+ggsave(tracer_PC03_plots_log, filename = "tracer_PC03_log.png", width = 14, height = 8, dpi = 500)
 
 ################################################################################
 
 ########### PC014 
 # insert all important events for PC14
-events_PC14 <- events[c(2, 5, 8, 10, 11, 12),]
+events_PC14 <- events[c(2, 5, 8, 10, 11, 16),]
 events_PC14_DNA <- events_PC14[c(1, 2, 4, 5, 6), -3]
+events_PC14_DNA[5,1] <- as_datetime("2024-07-28 06:30:00")
+events_PC14_DNA[5,2] <- "Final stop pumps"
 events_PC14_DNA$parameter <- c("DNA")
 events_PC14_DNA$y_position = c(7e-08, 6.5e-08, 7e-08, 6.5e-08, 7e-08)
-events_PC14_fluo <- events_PC14[c(3), -3]
+events_PC14_DNA_log <- events_PC14_DNA
+events_PC14_DNA_log$y_position = c(-3, -4, -3, -4, -3)
+events_PC14_fluo <- events_PC14[3, -3]
 events_PC14_fluo$parameter <- c("Fluorescence")
 events_PC14_fluo$y_position = c(700)
 
@@ -314,10 +371,10 @@ PC14_kit$type <- c("tinopal_samples")
 PC14_kit$Tracer <- c("Fluorescence")
 PC14_kit$plot_type <- c("point")
 PC14_kit <- PC14_kit %>%
-  rename(date_time = date_time, value = "Tinopal", parameter = Tracer, type = type)
+  rename(value = "Tinopal", parameter = Tracer)
 
 # prep dna data
-PC14_dna_data <- PC14_data %>%
+PC14_dna_data <- PC14_data[c(16:45),]%>%
   rename(date_time = date_time, value = "DNA_conc", type = Tracer)
 PC14_dna_data$parameter <- c("DNA")
 PC14_dna_data$plot_type <- c("point")
@@ -342,6 +399,8 @@ PC11_diver$plot_type <- c("line")
 # combine all the datasets
 combined_data_PC14 <- bind_rows(PC14_dna_data, PC14_kit, PC14_fluo, PC14_piez, PC11_diver)
 tracer_data_PC14 <- bind_rows(PC14_dna_data, PC14_kit, PC14_fluo)
+tracer_data_PC14 <- tracer_data_PC14 %>%
+  mutate(value_transformed = ifelse(parameter == "DNA", log10(value), value))
 
 # create plot of all parameters measured at PC14, stacked over each other 
 stacked_PC14_plots <- ggplot(combined_data_PC14, aes(x = date_time, y = value, color = type)) +
@@ -373,27 +432,54 @@ tracer_PC14_plots <- ggplot(tracer_data_PC14, aes(x = date_time, y = value, colo
   geom_point(data = tracer_data_PC14[tracer_data_PC14$plot_type == "point", ], size = 1) + 
   geom_line(data = tracer_data_PC14[tracer_data_PC14$plot_type == "line", ], linewidth = 0.5) +
   geom_line(data = tracer_data_PC14[tracer_data_PC14$parameter == "DNA", ], size = 0.5) +
+  geom_line(data = tracer_data_PC14[tracer_data_PC14$type == "tinopal_samples", ], size = 0.5) +
   geom_vline(xintercept = events_PC14$date_time, 
              linetype = "dashed", 
              color = "red", 
              linewidth = 0.5) +
-  labs(title = "Tracers measured at PC14", subtitle = "Both from groundwater samples as well as continuous fluorescence measurements", 
-       x = "Date", y = "Fluorescence (ppb)                                               DNA (g/l)") +
-  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422","#DDA0DD", "#5D478B", "darkblue"), name = "type") +
+  labs(x = "Date (July 2024)", y = "Fluorescence (ppb)                                               DNA (g/L)") +
+  scale_color_manual(values = c("#EE7600", "#EEB422","darkblue", "steelblue", "#DDA0DD"), name = "Type of tracer", labels = c("KUM2", "KUM3", "Tinopal probe", "Tinopal (lab", "Uranine (probe")) +
   facet_wrap(~ parameter, ncol = 1, scales = "free_y", 
              labeller = as_labeller(c(DNA = "DNA concentration", Fluorescence = "Fluorescent concentration") ) )  +
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
-    legend.position = "right") +
-  scale_x_datetime(date_breaks = "1 day", date_labels = '%d-%m-%Y') +
+    legend.position = "bottom", legend.title=element_text(size=15), 
+    legend.text=element_text(size=10)) +
+  scale_x_datetime(date_breaks = "1 day", date_labels = '%d') +
   geom_text(data = events_PC14_DNA, aes(x = date_time, y = y_position, label = event), vjust = 1.5 , color = "red", 
             inherit.aes = FALSE) +
   geom_text(data = events_PC14_fluo, aes(x = date_time, y = y_position, label = event), 
             vjust = 1.5, color = "red", 
             inherit.aes = FALSE)
-ggsave(tracer_PC14_plots, filename = "tracer_PC14_labels.pdf", width = 14, height = 8, dpi = 500)
+ggsave(tracer_PC14_plots, filename = "tracer_PC14_labels.png", width = 14, height = 8, dpi = 500)
 
+
+tracer_PC14_plots_log <- ggplot(tracer_data_PC14, aes(x = date_time, y = value_transformed, color = type)) +
+  geom_point(data = tracer_data_PC14[tracer_data_PC14$plot_type == "point", ], size = 1) + 
+  geom_line(data = tracer_data_PC14[tracer_data_PC14$plot_type == "line", ], linewidth = 0.5) +
+  geom_line(data = tracer_data_PC14[tracer_data_PC14$parameter == "DNA", ], size = 0.5) +
+  geom_line(data = tracer_data_PC14[tracer_data_PC14$type == "tinopal_samples", ], size = 0.5) +
+  geom_vline(xintercept = events_PC14$date_time, 
+             linetype = "dashed", 
+             color = "red", 
+             linewidth = 0.5) +
+  labs(x = "Date (July 2024)", y = "Fluorescence (ppb)                                               DNA log (g/L)") +
+  scale_color_manual(values = c("#EE7600", "#EEB422","darkblue", "steelblue", "#DDA0DD"), name = "Type of tracer", labels = c("KUM2", "KUM3", "Tinopal probe", "Tinopal (lab", "Uranine (probe")) +
+  facet_wrap(~ parameter, ncol = 1, scales = "free_y", 
+             labeller = as_labeller(c(DNA = "DNA concentration", Fluorescence = "Fluorescent concentration") ) )  +
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold"),
+    legend.position = "bottom", legend.title=element_text(size=15), 
+    legend.text=element_text(size=10)) +
+  scale_x_datetime(date_breaks = "1 day", date_labels = '%d') +
+  geom_text(data = events_PC14_DNA_log, aes(x = date_time, y = y_position, label = event), vjust = 1.5 , color = "red", 
+            inherit.aes = FALSE) +
+  geom_text(data = events_PC14_fluo, aes(x = date_time, y = y_position, label = event), 
+            vjust = 1.5, color = "red", 
+            inherit.aes = FALSE)
+ggsave(tracer_PC14_plots_log, filename = "tracer_PC14_log.png", width = 14, height = 8, dpi = 500)
 
 
 
@@ -404,6 +490,8 @@ events_PC15 <- events[c(3, 6, 9, 10, 11, 13, 14, 15, 16),]
 events_PC15_DNA <- events_PC15[c(1, 2, 4, 5, 9), -3]
 events_PC15_DNA$parameter <- c("DNA")
 events_PC15_DNA$y_position = c(5e-07, 4.5e-07, 5e-07, 4.5e-07, 5e-07)
+events_PC15_DNA_log <- events_PC15_DNA
+events_PC15_DNA_log$y_position = c(-3, -4, -3, -4, -3)
 events_PC15_fluo <- events_PC15[c(3, 6, 7, 8), -3]
 events_PC15_fluo$parameter <- c("Fluorescence")
 events_PC15_fluo$y_position = c(15, 15, 13.5, 15)
@@ -423,6 +511,15 @@ ggplot(PC15_fluo, aes(x=date_time, y = value)) +
   labs(title = "Fluorescence in PC15", x = "Date", y = "Uranine (ppb)") +
   theme_minimal()
 
+# for visualisation of a potential trend in this fluo dataset
+plot(y = as.ts(PC15_fluo$value), x = PC15_fluo$date_time)
+PC15_fluo_trend <- ma(PC15_fluo$value, order = 100, centre = T)
+plot(as.ts(PC15_fluo$value))
+lines(PC15_fluo_trend, col =2)
+deplot_PC15 <- PC15_fluo$value - PC15_fluo_trend
+plot(as.ts(deplot_PC15))
+
+
 # prep sample fluo data
 PC15_kit <- PC15_kit[,c(2,3)]
 PC15_kit$type <- c("uranine_samples")
@@ -437,6 +534,7 @@ PC15_dna_data <- PC15_data %>%
 PC15_dna_data$parameter <- c("DNA")
 PC15_dna_data$plot_type <- ("point")
 
+
 # prep piez data
 PC15_piez <- piez_data[c(29:41), c(3,4)]
 PC15_piez$type <- c("water_level_PC03")
@@ -449,6 +547,10 @@ PC15_piez <- PC15_piez %>%
 # combine all datasets
 combined_data_PC15 <- bind_rows(PC15_dna_data, PC15_kit, PC15_fluo, PC15_piez, PC11_diver)
 tracer_data_PC15 <- bind_rows(PC15_dna_data, PC15_kit, PC15_fluo)
+tracer_data_PC15 <- tracer_data_PC15 %>%
+  mutate(value_transformed = ifelse(parameter == "DNA", log10(value), value))
+
+
 
 # create plot of all parameters measured at PC15, stacked over each other 
 stacked_PC15_plots <- ggplot(combined_data_PC15, aes(x = date_time, y = value, color = type)) + # here variable type is used to differentiate what is shown
@@ -483,27 +585,55 @@ tracer_PC15_plots <- ggplot(tracer_data_PC15, aes(x = date_time, y = value, colo
   geom_point(data = tracer_data_PC15[tracer_data_PC15$plot_type == "point", ], size = 1) + 
   geom_line(data = tracer_data_PC15[tracer_data_PC15$plot_type == "line", ], linewidth = 0.5) +
   geom_line(data = tracer_data_PC15[tracer_data_PC15$parameter == "DNA", ], size = 0.5) +
+  geom_line(data = tracer_data_PC15[tracer_data_PC15$type == "uranine_samples",], size = 0.5) +
   geom_vline(xintercept = events_PC15$date_time, # adds a vertical line to show selected events
              linetype = "dashed", 
              color = "red", 
              linewidth = 0.5) +
-   labs(title = "Tracers measured at PC15", subtitle = "Both from groundwater samples as well as continuous fluorescence measurements", 
-       x = "Date", y = "Fluorescence (ppb)                                               DNA (g/l)") +
-  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422","#DDA0DD", "#5D478B", "darkblue"), name = "type") +
+   labs(x = "Date (July 2024)", y = "Uranine (ppb)                                               DNA (g/L)") +
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422","#DDA0DD", "mediumorchid4", "darkblue"), name = "Type of tracer", labels = c("KUM1", "KUM2", "KUM3", "Uranine (probe)", "Uranine (lab)")) +
   facet_wrap(~ parameter, ncol = 1, scales = "free_y", 
-             labeller = as_labeller(c(DNA = "DNA concentration", Fluorescence = "Fluorescent concentration") ) )  +
+             labeller = as_labeller(c(DNA = "DNA concentration", Fluorescence = "Uranine concentration") ) )  +
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
-    legend.position = "right") +
-  scale_x_datetime(date_breaks = "1 day", date_labels = '%d-%m-%Y') +
+    legend.position = "bottom", legend.title=element_text(size=15), 
+    legend.text=element_text(size=10)) +
+  scale_x_datetime(date_breaks = "1 day", date_labels = '%d') +
   geom_text(data = events_PC15_DNA, aes(x = date_time, y = y_position, label = event), vjust = 1.5 , color = "red", 
             inherit.aes = FALSE) +
   geom_text(data = events_PC15_fluo, aes(x = date_time, y = y_position, label = event), 
           vjust = 1.5, color = "red", 
           inherit.aes = FALSE)
-ggsave(tracer_PC15_plots, filename = "tracer_PC15_labels.pdf", width = 14, height = 8, dpi = 500)
+ggsave(tracer_PC15_plots, filename = "tracer_PC15_labels.png", width = 14, height = 8, dpi = 500)
 
+
+# plots OC15 log
+tracer_PC15_plots_log <- ggplot(tracer_data_PC15, aes(x = date_time, y = value_transformed, color = type)) + # here variable type is used to differentiate what is shown
+  geom_point(data = tracer_data_PC15[tracer_data_PC15$plot_type == "point", ], size = 1) + 
+  geom_line(data = tracer_data_PC15[tracer_data_PC15$plot_type == "line", ], linewidth = 0.5) +
+  geom_line(data = tracer_data_PC15[tracer_data_PC15$parameter == "DNA", ], size = 0.5) +
+  geom_line(data = tracer_data_PC15[tracer_data_PC15$type == "uranine_samples",], size = 0.5) +
+  geom_vline(xintercept = events_PC15$date_time, # adds a vertical line to show selected events
+             linetype = "dashed", 
+             color = "red", 
+             linewidth = 0.5) +
+  labs(x = "Date (July 2024)", y = "Uranine (ppb)                                               DNA log (g/L)") +
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422","#DDA0DD", "mediumorchid4", "darkblue"), name = "Type of tracer", labels = c("KUM1", "KUM2", "KUM3", "Uranine (probe)", "Uranine (lab)")) +
+  facet_wrap(~ parameter, ncol = 1, scales = "free_y", 
+             labeller = as_labeller(c(DNA = "DNA concentration", Fluorescence = "Uranine concentration") ) )  +
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold"),
+    legend.position = "bottom", legend.title=element_text(size=15), 
+    legend.text=element_text(size=10)) +
+  scale_x_datetime(date_breaks = "1 day", date_labels = '%d') +
+  geom_text(data = events_PC15_DNA_log, aes(x = date_time, y = y_position, label = event), vjust = 1.5 , color = "red", 
+            inherit.aes = FALSE) +
+  geom_text(data = events_PC15_fluo, aes(x = date_time, y = y_position, label = event), 
+            vjust = 1.5, color = "red", 
+            inherit.aes = FALSE)
+ggsave(tracer_PC15_plots_log, filename = "tracer_PC15_log.png", width = 14, height = 8, dpi = 500)
 
 
 
@@ -512,18 +642,25 @@ ggsave(tracer_PC15_plots, filename = "tracer_PC15_labels.pdf", width = 14, heigh
 # repeat for bailer locations
 # insert relevant bailer events
 events_bailer <- events[c(1, 4, 7, 10, 11, 16), -3]
-events_bailer$event <- c("Start pump", "Injection DNA", "Injection Fluorescence", "Stop pumps", "Start pumps", "Final stop pumps")
+events_bailer$event <- c("Start pump", "Injection DNA", "Injection Uranine PC11", "Stop pumps", "Start pumps", "Final stop pumps")
 
 events_bailer_DNA <- events_bailer[c(1, 2, 4, 5, 6),]
 events_bailer_DNA$Piezometer <- c("PC07")
 events_bailer_DNA$y_position = c(6.5e-08, 6e-08, 6.5e-08, 6e-08, 6.5e-08)
+events_bailer_DNA_log <- events_bailer_DNA
+events_bailer_DNA_log$y_position = c(-3, -4, -3, -4, -3)
 events_bailer_fluo <- events_bailer[c(1, 3, 4, 5, 6),]
 events_bailer_fluo$Piezometer <- c("PC07")
 events_bailer_fluo$y_position = c(40, 35, 40, 35, 40)
 
 
 bailer_fluo <- bailer_data[c(1:31),]
+bailer_fluo <- bailer_fluo[c(6:11),]
+
 bailer_dna <- bailer_data[c(32:76),]
+bailer_dna <- bailer_dna[c(1:40),] %>%
+  mutate(value_transformed = ifelse(parameter == "DNA", log10(value), value))
+
 
 # create plot for dna in bailers
 dna_bailer_plots <- ggplot(bailer_dna, aes(x = date_time, y = value, color = type)) + # here variable type is used to differentiate what is shown
@@ -533,43 +670,119 @@ dna_bailer_plots <- ggplot(bailer_dna, aes(x = date_time, y = value, color = typ
              linetype = "dashed", 
              color = "red", 
              linewidth = 0.5) +
-  labs(title = "DNA concentration measured at PC07, PC12, PC16", subtitle = "From groundwater samples", 
-       x = "Date", y = "DNA (g/l)") +
-  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422"), name = "type") +
+  labs(x = "Date (July 2024)", y = "DNA (g/L)") +
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422"), name = "Type of tracer", labels = c("KUM1", "KUM2", "KUM3")) +
   facet_wrap(~ Piezometer, ncol = 1, scales = "free_y", 
              labeller = as_labeller(c(PC07 = "PC07", PC12 = "PC12", PC16 = "PC16") ) )  +
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
-    legend.position = "right") +
-  scale_x_datetime(limits = as.POSIXct(c("2024-07-15", "2024-07-30")), date_breaks = "1 day", date_labels = '%d-%m-%Y') +
+    legend.position = "bottom", legend.title=element_text(size=15), 
+    legend.text=element_text(size=10)) +
+  scale_x_datetime(limits = as.POSIXct(c("2024-07-15", "2024-07-30")), date_breaks = "1 day", date_labels = '%d') +
   geom_text(data = events_bailer_DNA, aes(x = date_time, y = y_position, label = event), vjust = 1.5 , color = "red", 
            inherit.aes = FALSE)
-ggsave(dna_bailer_plots, filename = "dna_bailer_plots.jpeg", width = 14, height = 8, dpi = 500)
+ggsave(dna_bailer_plots, filename = "dna_bailer_plots.jpeg", width = 14, height = 8, dpi = 1000)
 
 
-
-# fluo plots in bailers
-fluo_bailer_plots <- ggplot(bailer_fluo, aes(x = date_time, y = value, color = type)) + # here variable type is used to differentiate what is shown
+# create log plot for dna in bailers
+dna_bailer_plots_log <- ggplot(bailer_dna, aes(x = date_time, y = value_transformed, color = type)) + # here variable type is used to differentiate what is shown
   geom_point(size = 1) + 
   geom_line(linewidth = 0.5) +
-  geom_vline(xintercept = events_bailer_fluo$date_time, # adds a vertical line to show selected events
+  geom_vline(xintercept = events_bailer_DNA$date_time, # adds a vertical line to show selected events
              linetype = "dashed", 
              color = "red", 
              linewidth = 0.5) +
-  labs(title ="Fluorescent concentration measured at PC07, PC12, PC16", subtitle = "From groundwater samples", 
-       x = "Date", y = "Fluorescence (ppb)") +
-  scale_color_manual(values = c("#5D478B", "#DDA0DD"), name = "type") +
-  facet_wrap(~ Piezometer, ncol = 1, scales = "fixed", 
+  labs(x = "Date (July 2024)", y = "DNA log (g/L)") +
+  scale_color_manual(values = c("#B03060", "#EE7600", "#EEB422"), name = "Type of tracer", labels = c("KUM1", "KUM2", "KUM3")) +
+  facet_wrap(~ Piezometer, ncol = 1, scales = "free_y", 
              labeller = as_labeller(c(PC07 = "PC07", PC12 = "PC12", PC16 = "PC16") ) )  +
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
-    legend.position = "right") +
-  scale_x_datetime(limits = as.POSIXct(c("2024-07-15", "2024-07-30")), date_breaks = "1 day", date_labels = '%d-%m-%Y') +
-  geom_text(data = events_bailer_fluo, aes(x = date_time, y = y_position, label = event), vjust = 1.5 , color = "red", 
+    legend.position = "bottom", legend.title=element_text(size=15), 
+    legend.text=element_text(size=10)) +
+  scale_x_datetime(limits = as.POSIXct(c("2024-07-15", "2024-07-30")), date_breaks = "1 day", date_labels = '%d') +
+  geom_text(data = events_bailer_DNA_log, aes(x = date_time, y = y_position, label = event), vjust = 1.5 , color = "red", 
             inherit.aes = FALSE)
-ggsave(fluo_bailer_plots, filename = "fluo_bailer_plots.jpeg", width = 14, height = 8, dpi = 500)
+ggsave(dna_bailer_plots_log, filename = "dna_bailer_plots_log.jpeg", width = 14, height = 8, dpi = 500)
 
 
+# fluo plots in bailers
+fluo_bailer_plots <- ggplot(bailer_fluo, aes(x = date_time, y = value, color = type)) + # here variable type is used to differentiate what is shown
+  geom_point(size = 2) + 
+  geom_line(linewidth = 1) +
+  geom_vline(xintercept = events_bailer_fluo$date_time, # adds a vertical line to show selected events
+             linetype = "dashed", 
+             color = "red", 
+             linewidth = 1) +
+  labs(x = "Date (July 2024)", y = "Uranine (ppb)") +
+  scale_color_manual(values = c("#DDA0DD"), name = "Type of tracer", labels = "Uranine at PC12 (lab)") +
+ # facet_wrap(~ Piezometer, ncol = 1, scales = "fixed", 
+            # labeller = as_labeller(c(PC07 = "PC07", PC12 = "PC12", PC16 = "PC16") ) )  +
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold"),
+    legend.position = "bottom", legend.title=element_text(size=15), 
+    legend.text=element_text(size=10), axis.text=element_text(size=12),
+    axis.title=element_text(size=14,face="bold")) +
+  scale_x_datetime(limits = as.POSIXct(c("2024-07-15", "2024-07-30")), date_breaks = "1 day", date_labels = '%d') +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 10))+
+  geom_text(data = events_bailer_fluo, aes(x = date_time, y = y_position, label = event, size = 8), vjust = 1.5 , color = "red", 
+            inherit.aes = FALSE)
+ggsave(fluo_bailer_plots, filename = "fluo_bailer_plots.jpeg", width = 14, height = 6, dpi = 500)
 
+
+################################################################################
+# total petroleum hydrocarbons
+events_tph <- events[c(1,10,11,16), -3]
+events_tph$y_position = c(120, 120, 115, 120)
+piez_PC03 <- piez_data[c(1:14),c(3,4,5)]  %>%
+  rename(value = level)
+piez_PC03$parameter <- c("piez")
+piez_PC03$value = c(piez_PC03$value*230)
+
+tph <- tph %>%
+  rename(value = total_hydrocarbons)
+tph$parameter <- c("tph")
+
+
+tph_piez <- bind_rows(tph, piez_PC03)
+
+tph_plots <- ggplot(tph_piez, aes(x = date_time, y = value, color = Piezometer)) + # here variable type is used to differentiate what is shown
+  geom_point(data = tph_piez[tph_piez$parameter == "tph", ], size = 1.5) + 
+  geom_line(data = tph_piez[tph_piez$parameter == "tph", ], linewidth = 1) +
+  geom_line(data = tph_piez[tph_piez$parameter == "piez", ], linewidth = 1, linetype = "dashed", color = "maroon3") +
+  geom_vline(xintercept = events_tph$date_time, # adds a vertical line to show selected events
+             linetype = "dashed", 
+             color = "red", 
+             linewidth = 0.5) +
+  geom_text(data = events_tph, aes(x = date_time, y = y_position, label = event, size = 8), vjust = 1.5 , color = "red", 
+            inherit.aes = FALSE)+
+  labs(x = "Date (July 2024)", y = "TPH (µ/L)") +
+  scale_color_manual(values = c("darkblue", "steelblue", "skyblue"), name = "Piezometer") +
+    theme(
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold"),
+    legend.position = "bottom", legend.title=element_text(size=15), 
+    legend.text=element_text(size=10), axis.text=element_text(size=12),
+    axis.title=element_text(size=14,face="bold")) +
+  scale_x_datetime(limits = as.POSIXct(c("2024-07-15", "2024-07-30")), date_breaks = "1 day", date_labels = '%d') +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 15), 
+                     sec.axis = sec_axis(~ ./230, breaks = scales::pretty_breaks(n = 10), name = "Hydraulic head at PC03 (m a.s.l.)"))
+  
+ggsave(tph_plots, filename = "tph_plots.png", width = 14, height = 8, dpi = 500)
+
+
+ggplot(piez_PC03, aes(x = date_time, y = value, color = Piezometer)) + # here variable type is used to differentiate what is shown
+  geom_line(linewidth = 1, linetype = "dashed") +
+  labs(x = "Date (July 2024)", y = "TPH (µ/L)") +
+  scale_color_manual(values = "maroon3", name = "Parameter", labels = "Hydraulic head at PC03") +
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold"),
+    legend.position = "bottom", legend.title=element_text(size=15), 
+    legend.text=element_text(size=10)) +
+  scale_x_datetime(limits = as.POSIXct(c("2024-07-15", "2024-07-30")), date_breaks = "1 day", date_labels = '%d')
+
+################################################################################

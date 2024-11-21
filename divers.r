@@ -1,19 +1,29 @@
 # Diver data
 
 getwd()
+
+library(dplyr)   
+library(stats)
+library(factoextra)
 library(readxl)
 library(ggplot2)
+library(ggrepel)
 library(tidyverse)
 library(tidyr)
 library(dplyr)
 library(viridis)
 library(patchwork)
+library(car)
+library(fpp)
+library(forecast)
+
 
 # load data from excel
 data_divers <- read_excel("data/diver_data_clean.xlsx")
 piez_data <- read_excel("data/piez.xlsx", sheet = "dati_pomp")
 data_piez_manual <- read_excel("data/piez.xlsx", sheet = "manual")
 events <- read_excel("data/all_measurements.xlsx", sheet = "events")
+pluviometry <- read_excel("data/piez.xlsx", sheet = "pluvio")
 
 
 # clean dataset
@@ -30,6 +40,74 @@ data_diver1 <- data_diver %>%
   select(date_time, PC01, PC08, PC09, PC10, PC11, PC13, PC21) %>%
   gather(key = "Piezometer", value = "subjectivity", -date_time) # collapse the piezometer columns into one to plot later
 data_diver1 <- na.omit(data_diver1) # remove NAs otherwise plots will not show properly
+
+EDA_plots <- function(x){
+  par(mfrow = c(2,2))
+  hist(x)
+  boxplot(x)
+  qqnorm(x)
+  qqline(x)
+  plot(density(x[!is.na(x)]))
+  abline(v = mean(x, na.rm = T), col = "red")
+  abline(v = median(x, na.rm = T), col = "green")
+  abline(v = sd(x, na.rm = T), col = "blue")
+}
+EDA_plots(data_quota$PC11)
+dev.off()
+
+par(mfrow = c(1, 1))    
+ggplot(data_quota, aes(x = date_time, y = PC01)) + 
+  geom_line() +
+  geom_line(PC01_trend)
+
+par(mfrow = c(1,2))
+# plot and detrend the singular piezometric movements
+plot(y = as.ts(data_quota$PC01), x = data_quota$date_time)
+PC01_trend <- ma(data_quota$PC01, order = 50, centre = T)
+plot(y = as.ts(data_quota$PC01), x = data_quota$date_time)
+lines(PC01_trend, col = 2)
+plot(as.ts(PC01_trend))
+deplot_PC01 <- data_quota$PC01 - PC01_trend
+plot(as.ts(deplot_PC01))
+
+PC08_trend <- ma(data_quota$PC08, order = 50, centre = T)
+plot(as.ts(data_quota$PC08))
+lines(PC08_trend, col =2)
+deplot_PC08 <- data_quota$PC08 - PC08_trend
+plot(as.ts(deplot_PC08))
+
+PC09_trend <- ma(data_quota$PC09, order = 50, centre = T)
+plot(as.ts(data_quota$PC09))
+lines(PC09_trend, col =2)
+deplot_PC09 <- data_quota$PC09 - PC09_trend
+plot(as.ts(deplot_PC09))
+
+PC10_trend <- ma(data_quota$PC10, order = 50, centre = T)
+plot(as.ts(data_quota$PC10))
+lines(PC10_trend, col =2)
+deplot_PC10 <- data_quota$PC10 - PC10_trend
+plot(as.ts(deplot_PC10))
+
+
+par(mfrow = c(3, 2))  
+PC11_trend <- ma(data_quota$PC11, order = 50, centre = T)
+plot(as.ts(data_quota$PC11))
+lines(PC11_trend, col =2)
+deplot_PC11 <- data_quota$PC11 - PC11_trend
+plot(as.ts(deplot_PC11))
+
+PC13_trend <- ma(data_quota$PC13, order = 50, centre = T)
+plot(as.ts(data_quota$PC13))
+lines(PC13_trend, col =2)
+deplot_PC13 <- data_quota$PC13 - PC13_trend
+plot(as.ts(deplot_PC13))
+
+PC21_trend <- ma(data_quota$PC21, order = 50, centre = T)
+plot(as.ts(data_quota$PC21))
+lines(PC21_trend, col =2)
+deplot_PC21 <- data_quota$PC21 - PC21_trend
+plot(as.ts(deplot_PC21))
+
 
 # plot piezometry using ggplot
 plot_divers <- ggplot(data_diver1, aes(x = date_time, y = subjectivity)) + 
@@ -193,48 +271,71 @@ data_quota <- na.omit(data_quota)
 
 data_quota1 <- data_quota %>% 
   select(date_time, PC01, PC08, PC09, PC10, PC11, PC13, PC21) %>%
-  gather(key = "Piezometer", value = "quota", -date_time) # collapse the piezometer columns into one to plot later
+  gather(key = "Borehole", value = "quota", -date_time)# collapse the piezometer columns into one to plot later
+
+data_piez_manual <- data_piez_manual %>%
+  rename(Borehole = Piezometer)
 
 data_quota1$plot_type <- c("line")
 data_piez_manual$plot_type <- c("dashed")
 
 events_piez <- events[c(1, 10, 11, 16), -3]
 events_piez$y_position = c(0.62, 0.62, 0.61, 0.62)
+events_piez[1,1] <- as.POSIXct("2024-07-16 02:00:00")
 date = as_datetime("2024-07-17 13:54:27")
-events_piez <- events_piez %>% add_row(date_time = date, event = "Install divers", y_position = 0.62)
+events_piez <- events_piez %>% add_row(date_time = date, event = "Installing pressure transducer", y_position = 0.61)
 
 
+pluv <- pluviometry[, c(1,3)] %>%
+  rename (prec = bari_campus)
+  
+pluv$Precipitation <- c("Rainfall in mm")
+pluv$plot_type <- c("bar")
+pluv[8,2] <- 1.6
 
 combined_data_piez <- bind_rows(data_quota1, data_piez_manual)
+combined_data_piez$label <- combined_data_piez$Borehole
+
+
+df_summary <- combined_data_piez %>%
+  group_by(Borehole) %>%
+  filter(row_number() == n())  # Get the last row for each group
+
 
 # plot piezometry using ggplot
 plot_quota <- ggplot(combined_data_piez, aes(x = date_time, y = quota)) + 
-  geom_line(data = combined_data_piez[combined_data_piez$plot_type == "line", ], aes(color = Piezometer), linewidth = 1) +
-  geom_line(data = combined_data_piez[combined_data_piez$plot_type == "dashed", ], aes(color = Piezometer), linetype = "dashed", linewidth = 1) +
-  geom_point(data = combined_data_piez[combined_data_piez$plot_type == "dashed", ], aes(color = Piezometer), size = 1) + 
+  geom_line(data = combined_data_piez[combined_data_piez$plot_type == "line", ], aes(color = Borehole), linewidth = 1) +
+  geom_line(data = combined_data_piez[combined_data_piez$plot_type == "dashed", ], aes(color = Borehole), linetype = "dashed", linewidth = 1) +
+  geom_point(data = combined_data_piez[combined_data_piez$plot_type == "dashed", ], aes(color = Borehole), size = 1) + 
+  geom_label_repel(data = df_summary, aes(label = label, colour = label, size = 8), 
+                   box.padding = 0.5,  # Adjust padding as needed
+                   point.padding = 0.2, label.size = 1, direction = "y",
+                   hjust = 0) +
   geom_vline(xintercept = events_piez$date_time, # adds a vertical line to show selected events
              linetype = "dashed", 
              color = "red", 
              size = 0.5) +
-  labs(title = "Diver Measurements", 
-       subtitle = "Quota of each Piezometer", 
-       x = "Date & Time", y = "Piezometry (m)") +
+  labs(x = "Date (July 2024)", y = "Hydraulic head (m a.s.l.)") +
   scale_colour_viridis_d(option = "turbo", direction = -1) +
-  theme(panel.background = element_rect(fill = "white")) +
-  geom_text(data = events_piez, aes(x = date_time, y = y_position, label = event), vjust = 1.5 , color = "red", 
-            inherit.aes = FALSE)
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold"),
+    legend.position = "none", axis.text=element_text(size=12),
+    axis.title=element_text(size=14,face="bold")) +
+  scale_x_datetime(limits = as.POSIXct(c("2024-07-16", "2024-07-31")), date_breaks = "1 day", date_labels = '%d') +
+  geom_text(data = events_piez, aes(x = date_time, y = y_position, label = event, size = 8), vjust = 1.5 , color = "red", 
+            inherit.aes = FALSE) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 20), sec.axis = sec_axis(~ .*4, breaks = scales::pretty_breaks(n = 10), name = "Precepitation (mm)"))
 plot_quota
-ggsave(plot_quota, filename = "plot_quota_labels.pdf", width = 14, height = 8, dpi = 500)
+ggsave(plot_quota, filename = "plot_quota_labels.jpeg", width = 14, height = , dpi = 500)
 
-
-
-
-
-
-# plot the singular piezometers
+################################################################################
+# plot the individual borehole quotas
 
 PC01_q <- ggplot(data_quota, aes(x = date_time, y = PC01)) + 
-  geom_line()
+  geom_line() +
+  scale_x_datetime(limits = as.POSIXct(c("2024-07-15", "2024-07-30")), date_breaks = "1 day", date_labels = '%d-%m-%Y')
+  
 PC08_q <- ggplot(data_quota, aes(x = date_time, y = PC08)) + 
   geom_line()
 PC09_q <- ggplot(data_quota, aes(x = date_time, y = PC09)) + 
@@ -247,6 +348,8 @@ PC13_q <- ggplot(data_quota, aes(x = date_time, y = PC13)) +
   geom_line()
 PC21_q <- ggplot(data_quota, aes(x = date_time, y = PC21)) + 
   geom_line()
+scale_x_datetime(limits = as.POSIXct(c("2024-07-15", "2024-07-30")), date_breaks = "1 day", date_labels = '%d-%m-%Y') +
+  
 
 # combine them using patchwork package
 all_plots_q <- (PC01_q + PC08_q) / (PC09_q + PC10_q) / (PC11_q + PC13_q)/ PC21_q 
