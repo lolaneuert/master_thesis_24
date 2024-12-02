@@ -723,7 +723,7 @@ fluo_bailer_plots <- ggplot(bailer_fluo, aes(x = date_time, y = value, color = t
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
-    legend.position = "bottom", legend.title=element_text(size=15), 
+    legend.position = "right", legend.title=element_text(size=15), 
     legend.text=element_text(size=10), axis.text=element_text(size=12),
     axis.title=element_text(size=14,face="bold")) +
   scale_x_datetime(limits = as.POSIXct(c("2024-07-15", "2024-07-30")), date_breaks = "1 day", date_labels = '%d') +

@@ -46,7 +46,7 @@ data_divers <- read_excel("data/diver_data_clean.xlsx")
 tph <-  read_excel("data/all_measurements.xlsx", sheet = "TPH")
 
 events <- read_excel("data/all_measurements.xlsx", sheet = "events")
-
+events[16,1] <- as_datetime("2024-07-28 04:30:00")
 ################################################################################
 # filter dna data for limit of detection
 
@@ -188,7 +188,7 @@ tracer_PC03_plots_ex <- ggplot(tracer_data_PC03_ex, aes(x = date_time, y = value
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
-    legend.position = "bottom",  legend.title=element_text(size=15), 
+    legend.position = "right",  legend.title=element_text(size=15), 
     legend.text=element_text(size=10), axis.text=element_text(size=12),
     axis.title=element_text(size=14,face="bold")) +
   scale_x_datetime(date_breaks = "1 day", date_labels = '%d') +
@@ -200,7 +200,7 @@ tracer_PC03_plots_ex <- ggplot(tracer_data_PC03_ex, aes(x = date_time, y = value
             inherit.aes = FALSE)
 
 # save the plot as a pdf
-ggsave(tracer_PC03_plots_ex, filename = "tracer_PC03_ex.png", width = 14, height = 8, dpi = 500)
+ggsave(tracer_PC03_plots_ex, filename = "tracer_PC03_ex.png", width = 18, height = 8, dpi = 500)
 
 
 
@@ -304,7 +304,7 @@ tracer_PC14_plots_ex <- ggplot(tracer_data_PC14_ex, aes(x = date_time, y = value
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
-    legend.position = "bottom", legend.title=element_text(size=15), 
+    legend.position = "right", legend.title=element_text(size=15), 
     legend.text=element_text(size=10), axis.text=element_text(size=12),
     axis.title=element_text(size=14,face="bold")) +
   scale_x_datetime(date_breaks = "1 day", date_labels = '%d') +
@@ -313,7 +313,7 @@ tracer_PC14_plots_ex <- ggplot(tracer_data_PC14_ex, aes(x = date_time, y = value
   geom_text(data = events_PC14_fluo, aes(x = date_time, y = y_position, label = event, size = 8), 
             vjust = 1.5, color = "red", 
             inherit.aes = FALSE)
-ggsave(tracer_PC14_plots_ex, filename = "tracer_PC14_ex.png", width = 14, height = 8, dpi = 500)
+ggsave(tracer_PC14_plots_ex, filename = "tracer_PC14_ex.png", width = 18, height = 8, dpi = 500)
 
 
 
@@ -323,8 +323,8 @@ ggsave(tracer_PC14_plots_ex, filename = "tracer_PC14_ex.png", width = 14, height
 events_PC15 <- events[c(3, 6, 9, 10, 11, 13, 14, 15, 16),]
 events_PC15[2,2] <- "Injection KUM3 PC11"
 events_PC15[3,2] <- "Injection Uranine PC11"
-events_PC15[2,1] <- as.POSIXct("2024-07-16 20:00:00")
-events_PC15[3,1] <- as.POSIXct("2024-07-16 20:00:00")
+events_PC15[2,1] <- as.POSIXct("2024-07-16 24:00:00")
+events_PC15[3,1] <- as.POSIXct("2024-07-16 24:00:00")
 events_PC15_DNA <- events_PC15[c(1, 2, 4, 5, 9), -3]
 events_PC15_DNA$parameter <- c("DNA")
 events_PC15_DNA$y_position = c(5e-07, 4.5e-07, 5e-07, 4.5e-07, 5e-07)
@@ -422,7 +422,7 @@ tracer_PC15_plots_ex <- ggplot(tracer_data_PC15_ex, aes(x = date_time, y = value
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
-    legend.position = "bottom", legend.title=element_text(size=15), 
+    legend.position = "right", legend.title=element_text(size=15), 
     legend.text=element_text(size=10), axis.text=element_text(size=12),
     axis.title=element_text(size=14,face="bold")) +
   scale_x_datetime(date_breaks = "1 day", date_labels = '%d') +
@@ -432,7 +432,7 @@ tracer_PC15_plots_ex <- ggplot(tracer_data_PC15_ex, aes(x = date_time, y = value
   geom_text(data = events_PC15_fluo, aes(x = date_time, y = y_position, label = event, size = 8), 
             vjust = 1.5, color = "red", 
             inherit.aes = FALSE)
-ggsave(tracer_PC15_plots_ex, filename = "tracer_PC15_ex.png", width = 14, height = 8, dpi = 500)
+ggsave(tracer_PC15_plots_ex, filename = "tracer_PC15_ex.png", width = 18, height = 8, dpi = 500)
 
 
 
@@ -470,7 +470,7 @@ dna_bailer_plots_ex <- ggplot(dna_bailer_ex3, aes(x = date_time, y = value, colo
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
-    legend.position = "bottom", legend.title=element_text(size=15), 
+    legend.position = "right", legend.title=element_text(size=15), 
     legend.text=element_text(size=10), axis.text=element_text(size=12),
     axis.title=element_text(size=14,face="bold")) +
   scale_x_datetime(limits = as.POSIXct(c("2024-07-15", "2024-07-30")), date_breaks = "1 day", date_labels = '%d') +
